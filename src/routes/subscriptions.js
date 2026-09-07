@@ -3,6 +3,8 @@ const store = require('../models/subscriptionStore');
 
 const router = express.Router();
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function isValidDate(value) {
   return value === undefined || value === null || !Number.isNaN(new Date(value).getTime());
 }
@@ -37,6 +39,44 @@ router.get('/:id', (req, res) => {
 
   req.log.info('subscriptions.fetched', { subscription_id: subscription.id });
   res.json(subscription);
+});
+
+/**
+ * GET /subscriptions/:id/crash
+ * Diagnostic endpoint that intentionally crashes the process when the
+ * given id is malformed or does not match any known subscription. Full
+ * context (subscription id, reason, request id) is logged to Datadog
+ * *before* the process terminates, so crash-reporting/alerting pipelines
+ * can be exercised end-to-end. Not intended for production traffic.
+ */
+router.get('/:id/crash', (req, res) => {
+  const { id } = req.params;
+  const isValidFormat = UUID_REGEX.test(id);
+  const subscription = isValidFormat ? store.findById(id) : null;
+
+  if (isValidFormat && subscription) {
+    req.log.info('subscriptions.crash_endpoint_hit_valid_id', { subscription_id: id });
+    return res.json({ message: 'Valid, known id — no crash triggered', subscription });
+  }
+
+  const reason = isValidFormat ? 'unknown_subscription_id' : 'invalid_subscription_id';
+
+  req.log.error('subscriptions.crash_triggered', {
+    subscription_id: id,
+    reason,
+    http: { method: req.method, url: req.originalUrl },
+  });
+
+  // Thrown outside Express's request-handling try/catch (via setImmediate)
+  // so it becomes an uncaughtException and crashes the process by design,
+  // instead of being caught and turned into an HTTP error response.
+  setImmediate(() => {
+    throw Object.assign(new Error(`Crash triggered: ${reason} (id=${id})`), {
+      reason,
+      subscription_id: id,
+      request_id: req.id,
+    });
+  });
 });
 
 /**
