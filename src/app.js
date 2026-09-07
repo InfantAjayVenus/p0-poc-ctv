@@ -1,8 +1,11 @@
 const express = require('express');
 const { logger } = require('./logger');
+const { registerProcessHandlers } = require('./processHandlers');
 const requestLogger = require('./middleware/requestLogger');
 const errorHandler = require('./middleware/errorHandler');
 const subscriptionsRouter = require('./routes/subscriptions');
+
+registerProcessHandlers();
 
 const app = express();
 
