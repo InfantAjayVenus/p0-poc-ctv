@@ -68,13 +68,38 @@ curl "http://localhost:3000/subscriptions?user_id=u1"
 curl http://localhost:3000/subscriptions/<id>
 ```
 
+### Crash-testing endpoint
+
+`GET /subscriptions/:id/crash` is a diagnostic-only endpoint used to exercise
+crash reporting: if `:id` is malformed or doesn't match a known subscription,
+it logs a `subscriptions.crash_triggered` error (with reason, subscription id,
+and request id) followed by a `process.fatal` log (with the full stack trace),
+then **intentionally crashes the process** (`process.exit(1)`). If `:id` is a
+valid, known subscription, it responds normally with `200` and no crash.
+Not intended for production traffic — the process needs to be restarted
+(e.g. by a process manager) after it's hit.
+
+```bash
+# Crashes the process (invalid format)
+curl http://localhost:3000/subscriptions/not-a-uuid/crash
+
+# Crashes the process (well-formed but unknown id)
+curl http://localhost:3000/subscriptions/00000000-0000-0000-0000-000000000000/crash
+
+# Does NOT crash — returns 200 with the subscription
+curl http://localhost:3000/subscriptions/<valid-existing-id>/crash
+```
+
 ## Logging & observability
 
 Every request gets a unique `request_id` and logs a `request.started` /
 `request.completed` event (with `duration_ms` and `http.status_code`),
 plus resource-specific events like `subscriptions.created`,
 `subscriptions.list`, and `subscriptions.not_found`. Errors are logged
-with full stack traces by the centralized error handler.
+with full stack traces by the centralized error handler. Process-level
+crashes (uncaught exceptions / unhandled promise rejections) are also
+caught and logged with full context via `src/processHandlers.js` before
+the process exits, so unrecoverable failures are never silent.
 
 Logs are always printed to stdout as JSON, so they can be tailed by a
 Datadog Agent, Docker log driver, or any log collector. To also ship logs
@@ -105,11 +130,12 @@ needed here — configure the Agent itself with its own API key.
 src/
   app.js                        # Express app entrypoint
   logger.js                     # Winston logger (JSON + Datadog transport)
+  processHandlers.js             # logs & exits on uncaught exceptions/rejections
   middleware/
     requestLogger.js            # per-request logging & request id
     errorHandler.js             # centralized error logging/response
   models/
     subscriptionStore.js        # in-memory subscription data store
   routes/
-    subscriptions.js            # GET/POST /subscriptions endpoints
+    subscriptions.js            # GET/POST /subscriptions endpoints + crash-test route
 ```
