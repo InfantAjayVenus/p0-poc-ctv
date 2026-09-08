@@ -1,0 +1,31 @@
+{
+  "name": "p0-poc",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "nodemon src/app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/muzz-99/p0-ctv1-repo.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/muzz-99/p0-ctv1-repo/issues"
+  },
+  "homepage": "https://github.com/muzz-99/p0-ctv1-repo#readme",
+  "dependencies": {
+    "datadog-winston": "^1.6.0",
+    "express": "^5.2.1",
+    "winston": "^3.19.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
